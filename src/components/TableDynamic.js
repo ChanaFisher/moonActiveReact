@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { connect } from 'react-redux';
 import { actions } from '../Redux/Store/actions';
 import { compose } from "redux";
-import { Dropdown, ButtonGroup, Button, Modal, Form, Row, Col } from 'react-bootstrap';
+import { Dropdown, ButtonGroup, Button, Modal, Form, Row, Col, InputGroup } from 'react-bootstrap';
 import { FaUserEdit } from 'react-icons/fa'
 
 const mapDispatchToProps = (dispatch) => ({
@@ -19,9 +19,12 @@ export default compose(connect(mapStateToProps, mapDispatchToProps))(function Ta
     const { dataTable, setDataTable } = props;
     const [arrField, setarrField] = useState([])
     const [skip, setSkip] = useState(0)
+    const [limit, setLimit] = useState(0)
     const [show, setShow] = useState(false);
     const [objectEdit, setObjectEdit] = useState({})
     const handleClose = () => setShow(false);
+    const scrollUp = 873;
+    const scrollDown = 3622;
     const handleShow = (id) => {
         setObjectEdit(dataTable.filter(x => x._id == id)[0]);
         setShow(true)
@@ -51,12 +54,6 @@ export default compose(connect(mapStateToProps, mapDispatchToProps))(function Ta
             .then(res => res.json())
             .then((data) => {
                 console.log(data)
-                // dataTable.forEach(element => {
-                //     if (element._id != objectEdit._id)
-                //         newDataTable.push(element)
-                //     else
-                //         newDataTable.push(objectEdit)
-                // });
                 newDataTable = dataTable.map(x => x._id == objectEdit._id ? objectEdit : x);
                 setDataTable(newDataTable)
             })
@@ -97,12 +94,15 @@ export default compose(connect(mapStateToProps, mapDispatchToProps))(function Ta
     const handleScroll = () => {
         const bottom = Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight;
         const top = Math.ceil(window.scrollY) == 0;
-        if (bottom) {
-            getAllData("down");
-        }
-        if (top) {
+        if (window.scrollY == scrollUp && skip > 0)
             getAllData("up")
-        }
+        if (window.scrollY == scrollDown)
+            getAllData("down");
+        if (bottom)
+            window.scrollTo(0, scrollDown)
+        if (top && skip > 0)
+            window.scrollTo(0, scrollUp);
+
     };
     useEffect(() => {
         window.addEventListener('scroll', handleScroll, {
@@ -133,57 +133,66 @@ export default compose(connect(mapStateToProps, mapDispatchToProps))(function Ta
 
     }
     useEffect(() => {
-        fetch("http://localhost:3001/getAllData", {
-            method: "post",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ limit: 40, skip: skip })
-        })
-            .then(res => res.json())
-            .then((data) => {
-                console.log(data)
-                setDataTable(data);
-
+        if (limit > 0) {
+            fetch("http://localhost:3001/getAllData", {
+                method: "post",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ limit: limit, skip: skip })
             })
-            .catch(err => console.log(err))
+                .then(res => res.json())
+                .then((data) => {
+                    setDataTable(data);
 
-    }, [skip])
+                })
+                .catch(err => console.log(err))
+        }
+    }, [skip, limit])
 
 
     function getAllData(status) {
-        getKeys();
 
         switch (status) {
-            case "up":
-                setSkip(skip - 20)
+            case "up": {
+                setSkip(skip - 15)
+                setLimit(80)
                 break;
-            case "down":
-                setSkip(skip + 20)
+            }
+            case "down": {
+                setSkip(skip + 15)
+                setLimit(80)
                 break;
+            }
+
             default:
-                setSkip(0);
+                {
+                    getKeys();
+                    setSkip(0);
+                    setLimit(80)
+                }
         }
 
     }
     return (
 
         <>
-            <button type="button" class="btn btn-outline-primary" onClick={() => { getAllData(); }}>View Table</button>
+            {limit == 0 ? <button type="button" className="btn btn-outline-primary" onClick={() => { getAllData(); }}>View Table</button> : ""}
 
             <div>
                 <table className="table table-striped table-hover">
                     <thead className="thead-primary">
                         <tr>
-                            {arrField.map((k) => (
-                                <th className="text-primary" scope="col">{k}</th>
+                            {arrField.map((key) => (
+                                <th className="text-primary" scope="col">{key}</th>
                             ))}
                             {arrField.length > 0 ? <th className="text-primary">Options</th> : ""}
+                            {arrField.length > 0 ? <th className="text-primary">Select</th> : ""}
                         </tr>
                     </thead>
                     <tbody>
-                        {dataTable.map((x, k) => (
+                        {dataTable.map((objectData, k) => (
                             <tr>
                                 {arrField.map((key) => (
-                                    <td scope="col">{x[key]}</td>))}
+                                    <td scope="col">{objectData[key]}</td>))}
                                 {arrField.length > 0 ? <td>
                                     <Dropdown as={ButtonGroup}>
                                         <Button variant="primary"><FaUserEdit /></Button>
@@ -191,12 +200,13 @@ export default compose(connect(mapStateToProps, mapDispatchToProps))(function Ta
                                         <Dropdown.Toggle split variant="primary" id="dropdown-split-basic" />
 
                                         <Dropdown.Menu>
-                                            <Dropdown.Item onClick={() => handleShow(x._id)}>Edit</Dropdown.Item>
-                                            <Dropdown.Item onClick={() => deleteField(x._id)} >Delete</Dropdown.Item>
-                                            <Dropdown.Item onClick={() => duplicateField(x)}>Duplicate</Dropdown.Item>
+                                            <Dropdown.Item onClick={() => handleShow(objectData._id)}>Edit</Dropdown.Item>
+                                            <Dropdown.Item onClick={() => deleteField(objectData._id)} >Delete</Dropdown.Item>
+                                            <Dropdown.Item onClick={() => duplicateField(objectData)}>Duplicate</Dropdown.Item>
                                         </Dropdown.Menu>
                                     </Dropdown>
                                 </td> : ""}
+                                {arrField.length > 0 ? <td><input className="form-check-input" type="checkbox" value="" id="flexCheckDefault" /></td> : ""}
                             </tr>))}
 
                     </tbody>
@@ -209,7 +219,7 @@ export default compose(connect(mapStateToProps, mapDispatchToProps))(function Ta
                 </Modal.Header>
                 <Modal.Body>
                     {arrField.map((key) => (
-                        <Form.Group as={Row} className="mb-3" controlId="formPlaintextEmail">
+                        <Form.Group as={Row} className="mb-3">
                             <Form.Label column sm="5">
                                 {key}:
                             </Form.Label>
@@ -218,6 +228,11 @@ export default compose(connect(mapStateToProps, mapDispatchToProps))(function Ta
                                     value={objectEdit[key]}
                                     onChange={(e) => saveChange(e.target.value, key)}
                                 />
+                                {/* <Form.Select  onChange={(e) => saveChange(e.target.value, key)}>
+                                        <option value="Basic">  Basic  </option>
+                                        <option value="Common">  Common  </option>
+                                       <option value="Epic">  Epic </option>
+                                     </Form.Select>  */}
                             </Col>
                         </Form.Group>
                     ))}
